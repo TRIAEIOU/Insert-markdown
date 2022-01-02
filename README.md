@@ -8,6 +8,7 @@ Configure symbols/strings, JavaScript or Python snippets to be inserted/executed
 <img src="https://aws1.discourse-cdn.com/standard11/uploads/anki2/original/2X/1/18a683d2c9fa656bce473a884611b2550e93bed4.png" height="300">
 
 **CONFIGURATION**
+
 Sample configuration included with addon. Add menu entries in add-on configuration by adding JSON objects and lists in hierarchal "node tree" where each node is one of the following:
 - Menu: Node is menu containing end nodes and/or submenus. Keys:
 - Mandatory:
@@ -90,8 +91,10 @@ Sample configuration included with addon. Add menu entries in add-on configurati
 }</code></pre>
 
 **MISC**
+
 In addition to being available from keyboard shortcuts the entire "tree" is available in the editor context menu (right click).
 Feel free to share your script snippets in https://forums.ankiweb.net/t/useful-javascript-snippets-for-the-editor/14536
 
 **CHANGELOG**
+
 Reimplementation from "Editor JS snippets": new format of config file (see above) to allow arbitrary submenu structure (unfortunately breaks previous configs), added python script support, added clipboard content to JavaScript environment, change addon name to match use.
