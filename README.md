@@ -1,5 +1,5 @@
 # Editor Scripts & Symbols
-Anki addon to run custom scripts and insert symbols/strings in the Anki editor using keyboard shortcuts or popup menus.
+Anki addon (https://ankiweb.net/shared/info/2065559429) to run custom scripts and insert symbols/strings in the Anki editor using keyboard shortcuts or popup menus (Anki forum https://forums.ankiweb.net/t/editor-js-snippets-support-thread/14958).
 
 Configure symbols/strings, JavaScript or Python snippets to be inserted/executed in the editor from keyboard shortcuts (Qt format, see https://doc.qt.io/qt-5/qkeysequence.html).
 
@@ -41,8 +41,7 @@ Sample configuration included with addon. Add menu entries in add-on configurati
     - File: File to load script commands from in [addon]/user_files.
     - Post: JavaScript command(s) to append to the file contents.
     - Shortcut: Keyboard shortcut to execute script.
-<pre><code>
-{
+<pre><code>{
 	"Menu": "Context menu - this node corresponds to the context menu",
 	"Shortcut": "Ctrl+Shift+F1",
 	"Items":
@@ -88,8 +87,7 @@ Sample configuration included with addon. Add menu entries in add-on configurati
 			"Shortcut": "Ctrl+Shift+F7"
 		}
 	]
-}
-</code></pre>
+}</code></pre>
 
 **MISC**
 In addition to being available from keyboard shortcuts the entire "tree" is available in the editor context menu (right click).
