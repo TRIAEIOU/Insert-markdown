@@ -1,4 +1,4 @@
-# Editor-scripts-symbols
+# Editor-Scripts-Symbols
 Anki addon to run custom scripts and insert symbols/strings in the Anki editor using keyboard shortcuts or popup menus.
 
 Configure symbols/strings, JavaScript or Python snippets to be inserted/executed in the editor from keyboard shortcuts (Qt format, see https://doc.qt.io/qt-5/qkeysequence.html).
