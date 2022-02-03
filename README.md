@@ -31,7 +31,7 @@ Sample configuration included with addon. Add menu entries in add-on configurati
     - File: File to load script commands from in [addon]/user_files.
     - Post: JavaScript command(s) to append to the file contents.
     - Shortcut: Keyboard shortcut to execute script.
-	- Cache: true (default) will load File from disk at addon startup and chache it, false will load File from disk each execution (allowing modification of the script without restarting Anki).
+	- Cache: true (default) will load File from disk at addon startup and cache it, false will load File from disk each execution (allowing modification of the script without restarting Anki).
 	- Script/Python: Node is Python to execute in editor. The script is executed through compile/exec statements. The Anki Editor object instance is available through the variable "editor", the QApplication clipboard is available through the variable "clipboard" and the main window object through the variable "mw". Keys:
   - Mandatory:
     - Script: Title/name of script.
@@ -42,7 +42,7 @@ Sample configuration included with addon. Add menu entries in add-on configurati
     - File: File to load script commands from in [addon]/user_files.
     - Post: JavaScript command(s) to append to the file contents.
     - Shortcut: Keyboard shortcut to execute script.
-	- Cache: true (default) will load File from disk at addon startup and chache it, false will load File from disk each execution (allowing modification of the script without restarting Anki).
+	- Cache: true (default) will load File from disk at addon startup and cache it, false will load File from disk each execution (allowing modification of the script without restarting Anki).
 <pre><code>{
 	"Menu": "Context menu - this node corresponds to the context menu",
 	"Shortcut": "Ctrl+Shift+F1",
