@@ -24,23 +24,25 @@ Sample configuration included with addon. Add menu entries in add-on configurati
     - Script/JavaScript: Node is JavaScript to execute in editor. The script is executed through document.execCommand(), the note contents are in the shadow root (document.activeElement.shadowRoot). The clipboard contents are made available in the object "ess_clipboard": ess_clipboard = {html: [clipboard HTML content], text: [clipboard text content]}. Keys:
   - Mandatory:
     - Script: Title/name of script.
-    - Language: Script language, must be "JS" "Language": "JS".
+    - Language: Script language, must be "JS".
     - At least one of "Pre", "File", "Post" (see below), otherwise nothing will be executed.
   - Optional:
     - Pre: JavaScript command(s) to prepend to the file contents.
     - File: File to load script commands from in [addon]/user_files.
     - Post: JavaScript command(s) to append to the file contents.
     - Shortcut: Keyboard shortcut to execute script.
-- Script/Python: Node is Python to execute in editor. The script is executed through compile/exec statements. The Anki Editor object instance is available through the variable "editor", the QApplication clipboard is available through the variable "clipboard" and the main window object through the variable "mw". Keys:
+	- Cache: true (default) will load File from disk at addon startup and chache it, false will load File from disk each execution (allowing modification of the script without restarting Anki).
+	- Script/Python: Node is Python to execute in editor. The script is executed through compile/exec statements. The Anki Editor object instance is available through the variable "editor", the QApplication clipboard is available through the variable "clipboard" and the main window object through the variable "mw". Keys:
   - Mandatory:
     - Script: Title/name of script.
-    - Language: Script language, must be "PY" "Language": "PY".
+    - Language: Script language, must be "PY".
     - At least one of "Pre", "File", "Post" (see below), otherwise nothing will be executed.
   - Optional:
     - Pre: Python command(s) to prepend to the file contents.
     - File: File to load script commands from in [addon]/user_files.
     - Post: JavaScript command(s) to append to the file contents.
     - Shortcut: Keyboard shortcut to execute script.
+	- Cache: true (default) will load File from disk at addon startup and chache it, false will load File from disk each execution (allowing modification of the script without restarting Anki).
 <pre><code>{
 	"Menu": "Context menu - this node corresponds to the context menu",
 	"Shortcut": "Ctrl+Shift+F1",
@@ -95,3 +97,4 @@ Feel free to share your script snippets in https://forums.ankiweb.net/t/useful-j
 
 ## CHANGELOG
 Reimplementation from "Editor JS snippets": new format of config file (see above) to allow arbitrary submenu structure (unfortunately breaks previous configs), added python script support, added clipboard content to JavaScript environment, change addon name to match use.
+2022-02-04 Add option to not cache script files, i.e. reload them from disk each script execution.

@@ -113,7 +113,8 @@
 			"Pre": "var sel = document.activeElement.shadowRoot.getSelection(); for (i = 0; i < sel.rangeCount; i++) { var rng = sel.getRangeAt(i); var input = new XMLSerializer().serializeToString(rng.extractContents()); input = input.toLowerCase(); rng.insertNode(rng.createContextualFragment(input)); sel.addRange(rng);}",
 			"File": "",
 			"Post": "",
-			"Shortcut": "Ctrl+Shift+L"
+			"Shortcut": "Ctrl+Shift+L",
+			"Cache": true
 		},
 		{
 			"Script": "Uppercase",
@@ -121,7 +122,8 @@
 			"Pre": "var sel = document.activeElement.shadowRoot.getSelection(); for (i = 0; i < sel.rangeCount; i++) { var rng = sel.getRangeAt(i); var input = new XMLSerializer().serializeToString(rng.extractContents()); input = input.toUpperCase(); rng.insertNode(rng.createContextualFragment(input)); sel.addRange(rng);}",
 			"File": "",
 			"Post": "",
-			"Shortcut": "Ctrl+Shift+U"
+			"Shortcut": "Ctrl+Shift+U",
+			"Cache": true
 		}
 	]
 }

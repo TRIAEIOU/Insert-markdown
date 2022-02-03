@@ -5,6 +5,7 @@ from aqt import mw, gui_hooks
 from aqt.utils import *
 from aqt.qt import QMenu, QKeySequence, QApplication, QClipboard
 
+CACHE = "Cache"
 MENU = "Menu"
 SYMBOL = "Symbol"
 HTML = "HTML"
@@ -76,10 +77,16 @@ def build_cmds(node) -> Dict:
                     out[ITEMS].append(tmp_node)
         elif LANG in node and node[LANG].lower() == JS:
             out[LBL] = node[SCRIPT]
-            out[CMD] = lambda editor, cmd=build_js(node.get(PRE) or "", node.get(FILE) or "", node.get(POST) or ""): lambda: editor.web.eval(f"ess_clipboard = {clipboard()};\n{cmd}")
+            if CACHE not in node or node[CACHE] == True:
+                out[CMD] = lambda editor, cmd=build_js(node.get(PRE) or "", node.get(FILE) or "", node.get(POST) or ""): lambda: editor.web.eval(f"ess_clipboard = {clipboard()};\n{cmd}")
+            else:
+                out[CMD] = lambda editor: lambda: editor.web.eval(f"ess_clipboard = {clipboard()};\n{build_js(node.get(PRE) or '', node.get(FILE) or '', node.get(POST) or '')}")
         elif LANG in node and node[LANG].lower() == PY:
             out[LBL] = node[SCRIPT]
-            out[CMD] = lambda editor, cmd=build_py(node.get(PRE) or "", node.get(FILE) or "", node.get(POST) or ""): lambda: exec_py(cmd, editor)
+            if CACHE not in node or node[CACHE] == True:
+                out[CMD] = lambda editor, cmd=build_py(node.get(PRE) or "", node.get(FILE) or "", node.get(POST) or ""): lambda: exec_py(cmd, editor)
+            else:
+                out[CMD] = lambda editor: exec_py(build_py(node.get(PRE) or "", node.get(FILE) or "", node.get(POST) or ""), editor)
         elif SYMBOL in node:
             out[LBL] = node[SYMBOL]
             out[CMD] = lambda editor, cmd=f"document.execCommand(`{'insertHTML' if node[HTML] == 'true' else 'insertText'}`, false, `{node[SYMBOL]}`);": lambda: editor.web.eval(cmd)
