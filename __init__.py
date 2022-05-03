@@ -41,8 +41,6 @@ class IM_dialog(QDialog):
         self.ui.btns.accepted.connect(self.accept)
         self.ui.btns.rejected.connect(self.reject)
 
-        # Note: when rebuilding of editor.bundle.js you must set the anon function to return the final new EditView to var imd_editor as well as set the doc of the EventState to imd_content
-
         if html: # htmlmin does not handle NoneType string gracefully
             html = htmlmin.minify(html, remove_all_empty_space=True, keep_pre=True)
             html = re.sub(r'[ ]*<br>[ ]*', r'<br>', html, flags=re.IGNORECASE)
