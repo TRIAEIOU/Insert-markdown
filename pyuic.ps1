@@ -1,0 +1,1 @@
+ls *.ui | % { pyuic5 -x $_ -o $($_ -replace "\.ui", "_qt5.py"); pyuic6 -x $_ -o $($_ -replace "\.ui", "_qt6.py") }

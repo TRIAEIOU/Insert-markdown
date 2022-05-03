@@ -1,150 +1,196 @@
 import sys, os, codecs
+import json
 from typing import Dict
 from anki.hooks import addHook
 from aqt import mw, gui_hooks
 from aqt.utils import *
 from aqt.qt import QMenu, QKeySequence, QApplication, QClipboard
 
-CACHE = "Cache"
-MENU = "Menu"
-SYMBOL = "Symbol"
-HTML = "HTML"
-ITEMS = "Items"
-SHORTCUT = "Shortcut"
-SCRIPT = "Script"
-LANG = "Language"
-JS = "js"
-PY = "py"
-PRE = "Pre"
-FILE = "File"
-POST = "Post"
-CMD = "cmd"
-LBL = "lbl"
-ADDON_TITLE = "Editor Scripts & Symbols"
-ess_cmds = {}
+from . import htmlmin
+
+if qtmajor == 6:
+    from . import dialog_qt6 as dialog
+elif qtmajor == 5:
+    from . import dialog_qt5 as dialog
+
+CFG_SELECTION = "Selection only"
+CFG_OPEN = "Input markdown"
+CFG_INSERT = "Insert markdown"
+CFG_INSERT_PREVIEW = "Insert markdown (preview)"
+CFG_ELEMENT_CLASS = "Element class"
+ADDON_TITLE = "Insert markdown"
 
 
-# Build the JS commands from pre/post and file contents
-def build_js(pre, fname, post) -> str:
-    file = ""
-    if fname:
-        path = os.path.join(os.path.dirname(__file__), f"user_files/{fname}")
-        with codecs.open(path, encoding='utf-8') as fh:
-            file = fh.read().strip()
-    return pre + file + post
+###########################################################################
+# Main dialog to edit markdown
+###########################################################################
+class IM_dialog(QDialog):
+    ###########################################################################
+    # Constructor (populates and shows dialog)
+    ###########################################################################
+    def __init__(self, html, parent, on_accept = None, on_reject = None):
+        QDialog.__init__(self, parent)
+        self.ui = dialog.Ui_dialog()
+        self.ui.setupUi(self)
+        self.on_accept = on_accept
+        self.on_reject = on_reject
 
+        QShortcut(QKeySequence(Qt.CTRL + Qt.Key_Return), self).activated.connect(self.accept)
+        QShortcut(QKeySequence(Qt.SHIFT + Qt.Key_Escape), self).activated.connect(self.reject)
 
-# Build the PY commands from pre/post and file contents
-def build_py(pre, fname, post):
-    file = ""
-    if fname:
-        path = os.path.join(os.path.dirname(__file__), f"user_files/{fname}")
-        with codecs.open(path, encoding='utf-8') as fh:
-            file = fh.read()
-    return compile(f"{pre}\n{file}\n{post}\n", fname if fname else "<string>", "exec")
+        self.ui.btns.accepted.connect(self.accept)
+        self.ui.btns.rejected.connect(self.reject)
 
+        # Note: when rebuilding of editor.bundle.js you must set the anon function to return the final new EditView to var imd_editor as well as set the doc of the EventState to imd_content
 
-# Build and show menu from node and down at current caret position
-def show_submenu(node, editor):
-    def pop_submenu(pos):
-        menu = build_menu(node, None, editor)
-        menu.popup(editor.web.mapToGlobal(QPoint(pos[0], pos[1])))
-    editor.web.evalWithCallback("document.activeElement.focus(); sel = document.activeElement.shadowRoot.getSelection(); rng = sel.getRangeAt(sel.rangeCount - 1).cloneRange(); tmp_rng = document.createRange(); tmp_rng.setStart(sel.anchorNode, sel.anchorOffset); tmp_rng.setEnd(sel.focusNode, sel.focusOffset); rng.collapse(tmp_rng.collapsed); rect = rng.getBoundingClientRect(); [rect.x + rect.width, rect.y + rect.height]", pop_submenu)
-
-
-# Run py cmd in correct context
-def exec_py(cmd, editor):
-    exec(cmd, {"editor": editor, "clipboard": QApplication.clipboard(), "mw": mw})
-
-
-# Get clipboard contents and return "JS hash table" in string with contents
-def clipboard() -> str:
-    mime = QApplication.clipboard().mimeData(QClipboard.Mode.Clipboard)
-    return r'{html: `' + mime.html() + '`, text: `' + mime.text() + '`}'
-
-
-# Recursively take config node dict - parse and build commands
-def build_cmds(node) -> Dict:
-    if type(node) is dict:
-        out = {}
-        if ITEMS in node:
-            out[LBL] = node[MENU] if MENU in node else ""
-            out[CMD] = lambda editor: lambda: show_submenu(out, editor)
-            out[ITEMS] = []
-            for subnode in node[ITEMS]:
-                tmp_node = build_cmds(subnode)
-                if tmp_node:
-                    out[ITEMS].append(tmp_node)
-        elif LANG in node and node[LANG].lower() == JS:
-            out[LBL] = node[SCRIPT]
-            if CACHE not in node or node[CACHE] == True:
-                out[CMD] = lambda editor, cmd=build_js(node.get(PRE) or "", node.get(FILE) or "", node.get(POST) or ""): lambda: editor.web.eval(f"ess_clipboard = {clipboard()};\n{cmd}")
-            else:
-                out[CMD] = lambda editor: lambda: editor.web.eval(f"ess_clipboard = {clipboard()};\n{build_js(node.get(PRE) or '', node.get(FILE) or '', node.get(POST) or '')}")
-        elif LANG in node and node[LANG].lower() == PY:
-            out[LBL] = node[SCRIPT]
-            if CACHE not in node or node[CACHE] == True:
-                out[CMD] = lambda editor, cmd=build_py(node.get(PRE) or "", node.get(FILE) or "", node.get(POST) or ""): lambda: exec_py(cmd, editor)
-            else:
-                out[CMD] = lambda editor: exec_py(build_py(node.get(PRE) or "", node.get(FILE) or "", node.get(POST) or ""), editor)
-        elif SYMBOL in node:
-            out[LBL] = node[SYMBOL]
-            out[CMD] = lambda editor, cmd=f"document.execCommand(`{'insertHTML' if node[HTML] == 'true' else 'insertText'}`, false, `{node[SYMBOL]}`);": lambda: editor.web.eval(cmd)
+        if html: # htmlmin does not handle NoneType string gracefully
+            html = htmlmin.minify(html, remove_all_empty_space=True, keep_pre=True)
+            html = re.sub(r'[ ]*<br>[ ]*', r'<br>', html, flags=re.IGNORECASE)
+            html = re.sub(r'((<(b|u|i|del|sup|sub|h\d)([ ][^>]*)?>)+)<br>', r'<br>\1', html, flags=re.IGNORECASE)
+            html = re.sub(r'<br>((<\/(b|u|i|del|sup|sub|h\d)([][^>]*)?>)+)', r'\1<br>', html, flags=re.IGNORECASE)
         else:
-            err = "<p>Unknown configuration entry:</p><ul>"
-            for key, val in node.items():
-                err += f"<li>{key}: {val}</li>"
-            err += "</ul><p>Ignoring entry.</p>"
-            showWarning(text=err, parent=mw, title=ADDON_TITLE, textFormat="rich")
-            return None
-        out[SHORTCUT] = QKeySequence(node[SHORTCUT]) if SHORTCUT in node and node[SHORTCUT] else 0
-        return out
+            html = ""
+
+        ordinal = 0
+        for cloze in re.findall(r'{{c(\d+)::', html):
+            if int(cloze) > ordinal:
+                ordinal = int(cloze)
+
+        # print(f">>>>>>>\n{html}\n>>>>>>>>>>")
+        self.ui.web.setHtml(f'''
+        <html>
+        <head>
+            <script src="Showdown.next/showdown.js"></script>
+            <script src="Showdown.extensions/extendedTables.js"></script>
+            <script src="Showdown.extensions/superscript.js"></script>
+            <link rel=stylesheet href="codemirror/styles.css">
+            <script src="CodeMirror/editor.bundle.js"></script>
+        </head>
+        <body>
+            <script>
+                var sd_converter = new showdown.Converter({{extensions: [
+                    "extendedTables",
+                    "superscript"
+                ]}});
+                sd_converter.setFlavor('github');
+                sd_converter.setOption('underline', 'true');
+                sd_converter.setOption('strikethrough', 'true');
+                sd_converter.setOption('simpleLineBreaks', 'true');
+                var imd_editor = editor.create(sd_converter.makeMarkdown(`{html}`), {ordinal});
+                imd_editor.focus();
+            </script>
+        </body>
+        </html>
+        ''', QUrl.fromLocalFile(os.path.join(os.path.dirname(__file__), "")))
+
+    ###########################################################################
+    # Main dialog accept
+    ###########################################################################
+    def accept(self) -> None:
+        def cleanup(html):
+            # print(f">>>>>>>>>html we got back\n{html}\n<<<<<")
+            html = htmlmin.minify(html, remove_all_empty_space=True, keep_pre=True)
+            html = re.sub(r'<\/p>\s*<p>', r'<br><br>', html, flags = re.IGNORECASE | re.DOTALL)
+            html = re.sub(r'<\/?p>', r'', html, flags = re.IGNORECASE | re.DOTALL)
+            html = re.sub(r'[ ]*<br[ \/]*>[ ]*', r'<br>', html)
+            html = re.sub(r'(</(table|ol|ul)>)[ ]*', r'\1', html)
+            self.on_accept(html)
+
+        if self.on_accept:
+            self.ui.web.page().runJavaScript('''(function () {
+                return sd_converter.makeHtml(imd_editor.state.doc.toString());
+            })();''', cleanup)
+        return super().accept()
+
+    ###########################################################################
+    # Main dialog reject
+    ###########################################################################
+    def reject(self):
+        QDialog.reject(self) 
+
+
+###########################################################################
+# Open markdown dialog
+###########################################################################
+def input_md(editor, CFG):
+    # Run the md editor dialog with callback for accept
+    def run_dlg(html):
+        dlg = IM_dialog(html, editor.parentWindow, dlg_result)
+        dlg.show()
+    
+    # Callback for accepted md dialog
+    def dlg_result(html):
+        editor.web.eval(f'''
+            {"" if CFG[CFG_SELECTION] else "document.execCommand('delete', false, '');"}
+            pasteHTML({json.dumps(html)}, {json.dumps(True)});
+        ''')
+
+    # Get content to edit
+    if CFG[CFG_SELECTION]:
+        # Extend selection to complete lines and use this
+        editor.web.evalWithCallback('''(function () {
+            let sel = document.activeElement.shadowRoot.getSelection();
+            let rng = sel.getRangeAt(0);
+            let com_anc = rng.commonAncestorContainer;
+
+            let nd = rng.startContainer;
+            if (nd != com_anc) { while (nd.parentNode != com_anc) { nd = nd.parentNode; } }
+            if (nd.previousSibling) {{ rng.setStartAfter(nd.previousSibling); }}
+            else {{ rng.setStartBefore(nd); }}
+            
+            nd = rng.endContainer;
+            if (nd != com_anc) { while (nd.parentNode != com_anc) { nd = nd.parentNode; } }
+            if (nd.nextSibling) {{ rng.setEndBefore(nd.nextSibling); }}
+            else {{ rng.setEndAfter(nd); }}
+            
+            sel.removeAllRanges();
+            sel.addRange(rng);
+            let tmp = document.createElement('div');
+            tmp.append(rng.cloneContents());
+            return tmp.innerHTML;
+        })();
+        ''', run_dlg)
     else:
-        showWarning(text=f"<p>Incorrect configuation entry, expected dict type entry, found {type(node)}, ignoring.</p>", parent=mw, title=ADDON_TITLE, textFormat="rich")
-        return None
+        # Use entire content
+        editor.web.evalWithCallback('''(function () {
+            let root = document.activeElement.shadowRoot;
+            let sel = root.getSelection();
+            let rng = document.createRange();
+            rng.selectNodeContents(root.activeElement);
+            sel.removeAllRanges();
+            sel.addRange(rng);
+            return root.activeElement.innerHTML;
+        })();''', run_dlg)
 
 
-# Recursively take config dict - parse and add shortcuts
-def build_shortcuts(node, scuts, editor):
-    if SHORTCUT in node:
-        scuts.append([node[SHORTCUT], node[CMD](editor)])
-    if ITEMS in node:
-        for subnode in node[ITEMS]:
-            build_shortcuts(subnode, scuts, editor)
-
-
-# Recursively take config dict - parse - return QMenu
-def build_menu(node, menu, editor) -> QMenu:
-    if not menu:
-        menu = QMenu(editor.web)
-    if ITEMS in node:
-        for subnode in node[ITEMS]:
-            if ITEMS in subnode:
-                menu_action = menu.addMenu(build_menu(subnode, None, editor))
-                menu_action.setText(subnode[LBL])
-            else:
-                menu.addAction(subnode[LBL], subnode[CMD](editor), subnode[SHORTCUT])
-    else:
-        menu.addAction(node[LBL], node[CMD](editor), node[SHORTCUT])
-    return menu
-
-
-# Take config and recursively parse and add shortcuts
+###########################################################################
+# Parse config and add shortcuts
+###########################################################################
 def register_shortcuts(scuts, editor):
-    build_shortcuts(ess_cmds, scuts, editor)
+    scuts.append([CFG[CFG_OPEN], lambda: input_md(editor, CFG)])
 
 
-# Context menu activation - build and append ESS menu items
-def mouse_context(wedit, menu):
-    if ITEMS in ess_cmds:
-        menu.addSeparator()
-        menu = build_menu(ess_cmds, menu, wedit.editor)
-        menu.addSeparator()
+###########################################################################
+# Context menu activation - build and append menu items
+###########################################################################
+def mouse_context(weditor, menu):
+    menu.addAction(CFG_OPEN, lambda: input_md(weditor.editor, CFG), CFG[CFG_OPEN])
 
 
-# Only set up if not already loaded
-if not 2065559429 in sys.modules:
-    ess_cmds = build_cmds(mw.addonManager.getConfig(__name__))
-    gui_hooks.editor_did_init_shortcuts.append(register_shortcuts)
-    addHook('EditorWebView.contextMenuEvent', mouse_context) # Legacy hook but it does fire
-    #gui_hooks.editor_will_show_context_menu.append(mouse_context) # New style hooks doesn't fire until Image Occlusion Enhanced is fixed
+###########################################################################
+# "Main" - load config and set up hooks
+###########################################################################
+CFG = mw.addonManager.getConfig(__name__)
+CFG[CFG_SELECTION] = True if not CFG.get(CFG_SELECTION) or CFG.get(CFG_SELECTION).lower() == 'true' else False
+if not CFG.get(CFG_OPEN):
+    CFG[CFG_OPEN] = 'Ctrl+M'
+if not CFG.get(CFG_INSERT):
+    CFG[CFG_INSERT] = 'Ctrl+Enter'
+if not CFG.get(CFG_INSERT_PREVIEW):
+    CFG[CFG_INSERT_PREVIEW] = 'Ctrl+Shift+Enter'
+if not CFG.get(CFG_ELEMENT_CLASS):
+    CFG[CFG_ELEMENT_CLASS] = 'md_table'
+
+gui_hooks.editor_did_init_shortcuts.append(register_shortcuts)
+addHook('EditorWebView.contextMenuEvent', mouse_context) # Legacy hook but it does fire
+#gui_hooks.editor_will_show_context_menu.append(mouse_context) # New style hooks doesn't fire until Image Occlusion Enhanced is fixed
