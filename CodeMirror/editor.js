@@ -2,7 +2,7 @@ import {EditorView, keymap, highlightSpecialChars, drawSelection, highlightActiv
 import {EditorState} from "@codemirror/state"
 import {history, historyKeymap} from "@codemirror/history"
 import {indentOnInput} from "@codemirror/language"
-import {defaultKeymap} from "@codemirror/commands"
+import {defaultKeymap, indentWithTab} from "@codemirror/commands"
 import {bracketMatching} from "@codemirror/matchbrackets"
 import {closeBrackets, closeBracketsKeymap} from "@codemirror/closebrackets"
 import {searchKeymap, highlightSelectionMatches} from "@codemirror/search"
@@ -39,6 +39,7 @@ export function create(doc, ord) {
           ...searchKeymap,
           ...historyKeymap,
           ...completionKeymap,
+          indentWithTab,
           ...ankiClozeKeymap
         ]),
         EditorView.lineWrapping,

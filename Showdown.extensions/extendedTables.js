@@ -85,6 +85,8 @@
       let rows = table.input.split('\n').map((row, i) => {
         // strip | wrapped tables
         row = row.replace(/^(?:[ ]{0,3}\|)?(.*?)(?:\|[ \t]*)?$/, '$1');
+        // Replace inline <br>s
+        row = row.replace(/(?<!\\)((?:\\\\)*)¨T/g, '$1<br>');
         // parse code spans first, but we only support one line code spans
         return showdown.subParser('makehtml.codeSpan')(row, table.showdown.options, table.showdown.globals);
       });
@@ -149,7 +151,7 @@
         return row.map((cell, ii) => {
           let attr = table.styles[ii];
           // Reusing attributes, remove id previously set for headers
-          if (attr.id) {
+          if (table.showdown.options.tablesHeaderId && attr.id) {
             attr.classes = [attr.id] + '_col';
             delete attr.id;
           }
@@ -263,6 +265,7 @@
             aligns.push(valids[n]);
           }
           let txt = showdown.subParser('makeMarkdown.tableCell')(cell, evt.globals).trim();
+          txt = txt.replace(/[ ]*\n/g, '¨');
           colWidths.push(Math.max(txt.length, 3));
           headings.push(txt);
         });
@@ -286,6 +289,7 @@
       cells = cells.map((cell, i) => {
         let txt = showdown.subParser('makeMarkdown.tableCell')(cell, evt.globals).trim();
         if (txt.length > colWidths[i]) { colWidths[i] = txt.length; }
+        txt = txt.replace(/[ ]*\n/g, '¨');
         return txt;
       });
 
