@@ -1,9 +1,10 @@
 import os
 import json, base64
 from anki.hooks import addHook
-from aqt import mw, gui_hooks
+from aqt import mw, gui_hooks, webview
 from aqt.utils import *
 from aqt.qt import QKeySequence
+from typing import cast
 
 from . import htmlmin
 
@@ -36,12 +37,12 @@ class IM_dialog(QDialog):
         self.ui.setupUi(self)
         self.on_accept = on_accept
         self.on_reject = on_reject
-
-        QShortcut(QKeySequence(Qt.CTRL |  Qt.Key_Return), self).activated.connect(self.accept)
-        QShortcut(QKeySequence(Qt.SHIFT | Qt.Key_Escape), self).activated.connect(self.reject)
-
         self.ui.btns.accepted.connect(self.accept)
         self.ui.btns.rejected.connect(self.reject)
+        QShortcut(QKeySequence(Qt.Modifier.CTRL |  Qt.Key.Key_Return), self).activated.connect(self.accept)
+        QShortcut(QKeySequence(Qt.Modifier.SHIFT | Qt.Key.Key_Escape), self).activated.connect(self.reject)
+
+        self.setup_bridge(self.bridge_receiver)
 
         if html: # htmlmin does not handle NoneType string gracefully
             html = htmlmin.minify(html, remove_all_empty_space=True, keep_pre=True)
@@ -54,9 +55,6 @@ class IM_dialog(QDialog):
                 tail = match.group(2)
                 opn = len(re.findall(r'<(?:ol|ul)[^>]*>', tail))
                 close = len(re.findall(r'</(?:ol|ul)[^>]*>', tail))
-                print(">>>>>>>>>>>>>>>>>")
-                print(f"tail: {tail}")
-                print(f"opn: {opn}, close: {close}")
                 if opn > 0 and opn == close:
                     if m := re.search(r'((?:</li>\s*</(?:ul|ol)>\s*)+)$', tail, flags = re.IGNORECASE):
                         i = m.start()
@@ -66,10 +64,7 @@ class IM_dialog(QDialog):
 
                 return match.group(0)
 
-            html = re.sub(r'({{c\d+::)(.*?)}}', replacer, html, flags = re.IGNORECASE | re.DOTALL)
-            
-            #html = re.sub(r'({{c\d+::\s*<(?:ol|ul)>(?:.*?|(?:(?:<(?:ul|ol).*?>.*?</(?:ul|ol).*?>){2})*))(</li>\s*</(?:ol|ul)[^>]*?>)}}', r'\1}}\2', html, flags = re.IGNORECASE | re.DOTALL)
-            #html = re.sub(r'({{c\d+::\s*<(?:ol|ul)[^>]*>.*?)(</li>\s*</(?:ol|ul)>)}}(?:<br>)?', r'\1}}\2', html, flags = re.IGNORECASE | re.DOTALL)
+            html = re.sub(r'({{c\d+::)(.*?)}}', replacer, html, flags = re.IGNORECASE | re.DOTALL)            
         else:
             html = ""
 
@@ -78,7 +73,11 @@ class IM_dialog(QDialog):
             if int(cloze) > ordinal:
                 ordinal = int(cloze)
 
-        # print(f">>>>>>>\n{html}\n>>>>>>>>>>")
+        ########################################################################
+        ########################################################################
+
+        #self.ui.web.setHtml("""<html><head></head><body>Hmm</body></html>""", QUrl.fromLocalFile(os.path.join(os.path.dirname(__file__), "")))
+
         self.ui.web.setHtml(f'''
         <html>
         <head>
@@ -110,36 +109,92 @@ class IM_dialog(QDialog):
         </html>
         ''', QUrl.fromLocalFile(os.path.join(os.path.dirname(__file__), "")))
 
+
+
+    ###########################################################################
+    # Setup js → python message bridge (to shut Qt up b/c we don't use it)
+    # Stolen from AnkiWebView
+    ###########################################################################
+    def setup_bridge(self, handler):
+        class Bridge(QObject):
+            def __init__(self, handler: Callable[[str], Any]) -> None:
+                super().__init__()
+                self._handler = handler
+            @pyqtSlot(str, result=str)  # type: ignore
+            def cmd(self, str: str) -> Any:
+                return json.dumps(self._handler(str))
+        
+        self._bridge = Bridge(handler)
+        self._channel = QWebChannel(self.ui.web)
+        self._channel.registerObject("py", self._bridge)
+        self.ui.web.page().setWebChannel(self._channel)
+        qwebchannel = ":/qtwebchannel/qwebchannel.js"
+        jsfile = QFile(qwebchannel)
+        if not jsfile.open(QIODevice.OpenModeFlag.ReadOnly):
+            print(f"Error opening '{qwebchannel}': {jsfile.error()}", file=sys.stderr)
+        jstext = bytes(cast(bytes, jsfile.readAll())).decode("utf-8")
+        jsfile.close()
+        script = QWebEngineScript()
+        script.setSourceCode(
+            jstext
+            + """
+            var pycmd, bridgeCommand;
+            new QWebChannel(qt.webChannelTransport, function(channel) {
+                bridgeCommand = pycmd = function (arg, cb) {
+                    var resultCB = function (res) {
+                        // pass result back to user-provided callback
+                        if (cb) {
+                            cb(JSON.parse(res));
+                        }
+                    }
+                
+                    channel.objects.py.cmd(arg, resultCB);
+                    return false;                   
+                }
+                pycmd("domDone");
+            });
+        """)
+        script.setWorldId(QWebEngineScript.ScriptWorldId.MainWorld)
+        script.setInjectionPoint(QWebEngineScript.InjectionPoint.DocumentReady)
+        script.setRunsOnSubFrames(False)
+        self.ui.web.page().profile().scripts().insert(script)
+
+    ###########################################################################
+    # Bridge message receiver
+    ###########################################################################
+    def bridge_receiver(self, str = None):
+        pass
+
+
     ###########################################################################
     # Main dialog accept
     ###########################################################################
     def accept(self) -> None:
         def cleanup(html):
-            # print(f">>>>>>>>>html we got back\n{html}\n<<<<<")
-            html = htmlmin.minify(html, remove_all_empty_space=True, keep_pre=True)
-            html = re.sub(r'<\/p>\s*<p>', r'<br><br>', html, flags = re.IGNORECASE | re.DOTALL)
-            html = re.sub(r'<\/?p>', r'', html, flags = re.IGNORECASE | re.DOTALL)
-            html = re.sub(r'[ ]*<br[ \/]*>[ ]*', r'<br>', html)
-            html = re.sub(r'(</(table|ol|ul)>)[ ]*', r'\1', html)
-            # html = re.sub(r'(?<!\\)((?:\\\\)*)¨', r'\1<br>', html)
-            #html = re.sub(r'({{c\d+::\s*<(?:ol|ul)>(?:(?:<(?:ul|ol).*?>.*?</(?:ul|ol).*?>)*)|.*?(?!</(?:ol|ul>)))(</li>\s*</(?:ol|ul)[^>]*?>)}}', r'\1\2}}', html, flags = re.IGNORECASE | re.DOTALL)
-            
-            # fix clozes that look like they should surround an entire list
-            def replacer(match):
-                opn = len(re.findall(r'<(?:ol|ul)[^>]*>', match.group(2)))
-                close = len(re.findall(r'</(?:ol|ul)[^>]*>', match.group(2)))
-                if opn > close:
-                    tail = match.group(3)
-                    inds = [i.end() for i in re.finditer(r'</(ol|ul)>', tail)]
-                    i = inds[close - opn + 1]
-                    pre = tail[:i]
-                    post = tail[i:] if i < len(tail) else ''
-                    return match.group(1) + match.group(2) + pre + '}}<br>' + post
-                else:
-                    return match.group(0)
+            if html == None:
+                html = ''
+            if len(html):
+                html = htmlmin.minify(html, remove_all_empty_space=True, keep_pre=True)
+                html = re.sub(r'<\/p>\s*<p>', r'<br><br>', html, flags = re.IGNORECASE | re.DOTALL)
+                html = re.sub(r'<\/?p>', r'', html, flags = re.IGNORECASE | re.DOTALL)
+                html = re.sub(r'[ ]*<br[ \/]*>[ ]*', r'<br>', html)
+                html = re.sub(r'(</(table|ol|ul)>)[ ]*', r'\1', html)
+                
+                # fix clozes that look like they should surround an entire list
+                def replacer(match):
+                    opn = len(re.findall(r'<(?:ol|ul)[^>]*>', match.group(2)))
+                    close = len(re.findall(r'</(?:ol|ul)[^>]*>', match.group(2)))
+                    if opn > close:
+                        tail = match.group(3)
+                        inds = [i.end() for i in re.finditer(r'</(ol|ul)>', tail)]
+                        i = inds[close - opn + 1]
+                        pre = tail[:i]
+                        post = tail[i:] if i < len(tail) else ''
+                        return match.group(1) + match.group(2) + pre + '}}<br>' + post
+                    else:
+                        return match.group(0)
 
-            html = re.sub(r'({{c\d+::)(.*?)}}((?:\s*</li>\s*</(?:ol|ul)>)+)', replacer, html, flags = re.IGNORECASE | re.DOTALL)
-            #html = re.sub(r'({{c\d+::\s*<(?:ol|ul)[^>]*>.*?)}}(</li>\s*</(?:ol|ul)>)', r'\1\2}}<br>', html, flags = re.IGNORECASE | re.DOTALL) # fix clozes that look like they should surround an entire list
+                html = re.sub(r'({{c\d+::)(.*?)}}((?:\s*</li>\s*</(?:ol|ul)>)+)', replacer, html, flags = re.IGNORECASE | re.DOTALL)
 
             self.on_accept(html)
 
@@ -224,7 +279,6 @@ def input_md(editor, CFG):
                 pasteHTML({json.dumps(html)}, {json.dumps(True)});
             }})();''')
 
-
     # Get content to edit
     if CFG[CFG_SELECTION]:
         # Extend selection to complete lines and use this
@@ -251,6 +305,7 @@ def input_md(editor, CFG):
         })();
         ''', run_dlg)
     else:
+
         # Use entire content
         editor.web.evalWithCallback('''(function () {
             return document.activeElement.shadowRoot.activeElement.innerHTML;
@@ -261,17 +316,18 @@ def input_md(editor, CFG):
 # Parse config and add shortcuts
 ###########################################################################
 def register_shortcuts(scuts, editor):
-    scuts.append([CFG[CFG_OPEN], lambda: input_md(editor, CFG)])
+    scuts.append([QKeySequence(CFG[CFG_OPEN]), lambda: input_md(editor, CFG)])
 
 
 ###########################################################################
 # Context menu activation - build and append menu items
 ###########################################################################
 def mouse_context(weditor, menu):
-    action = QAction(CFG_OPEN)
-    action.setShortcut(CFG[CFG_OPEN])
+    action = QAction(CFG_OPEN, menu)
+    action.setShortcut(QKeySequence(CFG[CFG_OPEN]))
     action.triggered.connect(lambda: input_md(weditor.editor, CFG))
     menu.addAction(action)
+    return menu
 
 
 ###########################################################################
@@ -279,14 +335,12 @@ def mouse_context(weditor, menu):
 ###########################################################################
 CFG = mw.addonManager.getConfig(__name__)
 CFG[CFG_SELECTION] = CFG.get(CFG_SELECTION) == 'true'
-if CFG.get(CFG_OPEN):
-    CFG[CFG_OPEN] = QKeySequence(re.sub(r'(?<!_)+', r'|', CFG[CFG_OPEN]))
-else:
-    CFG[CFG_OPEN] = QKeySequence('Ctrl|M')
+if not CFG.get(CFG_OPEN):
+    CFG[CFG_OPEN] = 'Ctrl+m'
 if not CFG.get(CFG_INSERT):
     CFG[CFG_INSERT] = 'Ctrl+Enter'
 if not CFG.get(CFG_INSERT_PREVIEW):
-    CFG[CFG_INSERT_PREVIEW] = 'Ctrl+Shift+Enter'
+    CFG[CFG_INSERT_PREVIEW] = 'Ctrl|Shift|Enter'
 if not CFG.get(CFG_ELEMENT_CLASS):
     CFG[CFG_ELEMENT_CLASS] = 'md_table'
 if not CFG.get(CFG_SIZE_MODE):
@@ -295,5 +349,5 @@ if not CFG.get(CFG_EDITOR_CSS):
     CFG[CFG_EDITOR_CSS] = '.cm-content { font-family: Arial, monospace; font-size: 12px; }'
 
 gui_hooks.editor_did_init_shortcuts.append(register_shortcuts)
-addHook('EditorWebView.contextMenuEvent', mouse_context) # Legacy hook but it does fire
-#gui_hooks.editor_will_show_context_menu.append(mouse_context) # New style hooks doesn't fire until Image Occlusion Enhanced is fixed
+gui_hooks.editor_will_show_context_menu.append(mouse_context)
+#addHook('EditorWebView.contextMenuEvent', mouse_context) # Legacy hook

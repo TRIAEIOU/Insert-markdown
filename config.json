@@ -1,6 +1,6 @@
 {
 	"Selection only": "false",
-	"Input markdown": "Ctrl+M",
+	"Input markdown": "Ctrl+m",
 	"Insert markdown": "Ctrl+Enter",
 	"Insert markdown (preview)": "Ctrl+Shift+Enter",
 	"Element class": "md_table",

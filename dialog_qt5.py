@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Form implementation generated from reading ui file 'C:\usr\Code\Anki\addons\Insert markdown\dialog.ui'
+# Form implementation generated from reading ui file 'C:\Users\JoakimSkog\AppData\Roaming\Anki2\addons21\Insert markdown\dialog.ui'
 #
 # Created by: PyQt5 UI code generator 5.15.4
 #

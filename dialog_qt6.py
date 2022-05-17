@@ -1,4 +1,4 @@
-# Form implementation generated from reading ui file 'C:\usr\Code\Anki\addons\Insert markdown\dialog.ui'
+# Form implementation generated from reading ui file 'C:\Users\JoakimSkog\AppData\Roaming\Anki2\addons21\Insert markdown\dialog.ui'
 #
 # Created by: PyQt6 UI code generator 6.2.2
 #
