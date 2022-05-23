@@ -2,18 +2,18 @@ import {KeyBinding, Command} from "@codemirror/view";
 import {TransactionSpec, Extension} from '@codemirror/state';
 
 // Keep track of ordinal
-export class ordinal {
+export class Ordinal {
     static base = 0;
 }
 
 // Wrap selection(s) in cloze tags
-const clozeSelections = (inc: boolean): Command => (view) => {
+const clozeSelections = (inc) => (view) => {
     const selection = view.state.selection;
-    let i = ordinal.base;
+    let i = Ordinal.base;
     let itr = view.state.doc.iter();
     while (!itr.done) {
         if (!itr.lineBreak) {
-            for(const match of itr.value.matchAll(/{{c(\d+)::/)) {
+            for(const match of itr.value.matchAll(/{{c(\d+)::/g)) {
                 const n = parseInt(match[1]);
                 if (n > i) { i = n; }
             }
@@ -21,7 +21,7 @@ const clozeSelections = (inc: boolean): Command => (view) => {
         itr.next();
     }
 
-    let trs: TransactionSpec[] = [];
+    let trs = [];
     for (const r of selection.ranges) {
         if (inc) { i++; }
         if (r.empty) {
@@ -40,13 +40,13 @@ export const clozeNext = clozeSelections(true);
 export const clozeCurrent = clozeSelections(false);
 
 // Keyboard shortcuts
-export const ankiClozeKeymap: ReadonlyArray<KeyBinding> = [
+export const ankiClozeKeymap = [
     { key: 'Ctrl-Shift-c', run: clozeNext },
     { key: 'Ctrl-Alt-c', run: clozeCurrent }
 ]
 
 // Create extension with current ordinal
-export function ankiCloze(options: {ordinal?: number} = {}): Extension {
-    ordinal.base = options.ordinal == null ? 0 : options.ordinal;
+export function ankiCloze(options = {}) {
+    Ordinal.base = options['ordinal'] === undefined ? 0 : options['ordinal'];
     return []
   }

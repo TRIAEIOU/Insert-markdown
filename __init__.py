@@ -82,6 +82,7 @@ class IM_dialog(QDialog):
         <html>
         <head>
             <script src="Showdown.next/showdown.js"></script>
+            <script src="Showdown.extensions/stripDivAndSpan.js"></script>
             <script src="Showdown.extensions/extendedTables.js"></script>
             <script src="Showdown.extensions/superscript.js"></script>
             <script src="Showdown.extensions/asteriskHr.js"></script>
@@ -92,6 +93,7 @@ class IM_dialog(QDialog):
         <body>
             <script>
                 var sd_converter = new showdown.Converter({{extensions: [
+                    "stripDivAndSpan",
                     "extendedTables",
                     "superscript",
                     "asteriskHr"
