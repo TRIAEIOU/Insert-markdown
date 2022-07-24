@@ -1,0 +1,9 @@
+{
+	"Selection only": "false",
+	"Input markdown": "Ctrl+m",
+	"Insert markdown": "Ctrl+Enter",
+	"Insert markdown (preview)": "Ctrl+Shift+Enter",
+	"Element class": "md_table",
+	"Size mode": "parent",
+	"Editor CSS": ".cm-content { font-family: Consolas, monospace; font-size: 16px; }"
+}
